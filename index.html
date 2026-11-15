@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="查看大盘温度、六因子走势、阈值统计及历史信号明细。">
   <title>大盘顶底 · 六因子温度</title>
-  <link rel="stylesheet" href="./style.css?v=2">
-  <script defer src="./series.js?v=2"></script>
-  <script defer src="./dashboard.js?v=2"></script>
+  <link rel="stylesheet" href="./style.css?v=3">
+  <script defer src="./series.js?v=3"></script>
+  <script defer src="./dashboard.js?v=3"></script>
 </head>
 <body>
   <main class="wrap">
@@ -50,14 +50,15 @@
         </div>
       </div>
       <div class="plot">
-        <canvas id="temperature-chart" tabindex="0" role="img" aria-label="历史温度线图，左右方向键查看交易日">
+        <canvas id="temperature-chart" tabindex="0" role="img" aria-label="历史温度与上证指数走势，左右方向键查看交易日">
           历史温度线图。
         </canvas>
         <output id="temperature-tip" class="tooltip" hidden></output>
       </div>
-      <ul class="thresholds" aria-label="温度参考线">
+      <ul class="thresholds" aria-label="温度图图例">
         <li><span class="reference cold" aria-hidden="true"></span>20 底部参考</li>
         <li><span class="reference hot" aria-hidden="true"></span>80 顶部参考</li>
+        <li id="shanghai-legend" hidden><span class="reference index" aria-hidden="true"></span><span id="shanghai-label">上证指数（独立缩放）</span></li>
         <li id="benchmark-change"></li>
       </ul>
     </section>

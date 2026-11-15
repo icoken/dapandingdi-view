@@ -232,6 +232,8 @@ h2 { font-size: 1.2rem; }
 .reference { width: 18px; border-top: 2px dashed; }
 .reference.cold { color: var(--cold); }
 .reference.hot { color: var(--hot); }
+.reference.index { border-top-style: solid; color: #a4b9c9; }
+.thresholds li[hidden] { display: none; }
 
 .factors {
   display: flex;

@@ -20,6 +20,28 @@ function marketZone(score) {
   return "底部区";
 }
 
+function drawIndexTrend(context, trend, xFor, yFor) {
+  const { values, low, high } = trend;
+  context.strokeStyle = "#a4b9c9";
+  context.lineWidth = 2.1;
+  context.lineJoin = "round";
+  context.beginPath();
+  let hasPrevious = false;
+  values.forEach((value, index) => {
+    if (!Number.isFinite(value)) {
+      hasPrevious = false;
+      return;
+    }
+    const position = high === low ? 50 : 10 + 80 * (value - low) / (high - low);
+    const x = xFor(index);
+    const y = yFor(position);
+    if (hasPrevious) context.lineTo(x, y);
+    else context.moveTo(x, y);
+    hasPrevious = true;
+  });
+  context.stroke();
+}
+
 function drawChart(chart, rows) {
   const { canvas, context, heading, column, cursor } = chart;
   const { width, height } = canvas.getBoundingClientRect();
@@ -85,6 +107,8 @@ function drawChart(chart, rows) {
     const date = rows[i][0];
     context.fillText(rows.length < 150 ? date.slice(5) : date.slice(0, 7), x, bottom + 17);
   }
+
+  if (chart.indexTrend) drawIndexTrend(context, chart.indexTrend, xFor, yFor);
 
   context.lineWidth = 1.7;
   context.strokeStyle = chart.color;
@@ -342,6 +366,20 @@ function init(rows) {
   });
 
   const details = typeof marketDetails === "undefined" ? null : marketDetails;
+  function updateIndexTrend() {
+    const values = details?.shanghai?.slice(-visible.length) ?? [];
+    const observed = values.filter(Number.isFinite);
+    const hasTrend = observed.length > 1;
+    temperatureChart.indexTrend = hasTrend
+      ? { values, low: Math.min(...observed), high: Math.max(...observed) }
+      : null;
+    $("shanghai-legend").hidden = !hasTrend;
+    if (hasTrend) {
+      const end = visible[values.findLastIndex(Number.isFinite)][0];
+      $("shanghai-label").textContent = "上证指数（独立缩放）" + (end === latest[0] ? "" : " · 至 " + end);
+    }
+  }
+
   function render() {
     $("visible-range").textContent = visible[0][0] + " 至 " + latest[0];
     if (details) {
@@ -362,10 +400,12 @@ function init(rows) {
     visible = button.dataset.length === "all" ? rows : rows.slice(-Number(button.dataset.length));
     temperatureChart.cursor = null;
     factorChart.cursor = null;
+    updateIndexTrend();
     render();
   });
 
   if (details) renderDetails(details);
+  updateIndexTrend();
   render();
   const observer = new ResizeObserver(render);
   observer.observe(temperatureChart.canvas);
