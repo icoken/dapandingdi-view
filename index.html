@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="查看大盘温度与六项因子评分的历史走势。">
+  <meta name="description" content="查看大盘温度、六因子走势、阈值统计及历史信号明细。">
   <title>大盘顶底 · 六因子温度</title>
-  <link rel="stylesheet" href="./style.css">
-  <script defer src="./series.js"></script>
-  <script defer src="./dashboard.js"></script>
+  <link rel="stylesheet" href="./style.css?v=2">
+  <script defer src="./series.js?v=2"></script>
+  <script defer src="./dashboard.js?v=2"></script>
 </head>
 <body>
   <main class="wrap">
@@ -28,6 +28,14 @@
 
     <noscript><p class="notice">请启用 JavaScript 查看历史图表。</p></noscript>
     <p class="notice" id="data-error" hidden>温度数据加载失败。</p>
+
+    <nav class="section-nav" aria-label="看板栏目">
+      <a href="#history-title">温度走势</a>
+      <a href="#factors-title">六因子</a>
+      <a href="#stats-title">信号统计</a>
+      <a href="#levels-title">阈值对照</a>
+      <a href="#signals-title">历史明细</a>
+    </nav>
 
     <section class="panel" aria-labelledby="history-title">
       <div class="panel-header">
@@ -50,6 +58,7 @@
       <ul class="thresholds" aria-label="温度参考线">
         <li><span class="reference cold" aria-hidden="true"></span>20 底部参考</li>
         <li><span class="reference hot" aria-hidden="true"></span>80 顶部参考</li>
+        <li id="benchmark-change"></li>
       </ul>
     </section>
 
@@ -68,6 +77,84 @@
         <output id="factor-tip" class="tooltip" hidden></output>
       </div>
     </section>
+
+    <div id="detail-panels" hidden>
+      <section class="summary-grid" aria-label="资金面">
+        <article class="panel metric">
+          <h2>融资余额占流通市值</h2>
+          <strong id="margin-value">—</strong>
+          <p id="margin-date" class="date-range">两融数据 · T+1</p>
+          <canvas id="margin-chart" role="img" aria-label="融资余额占比近 60 个披露日走势" hidden></canvas>
+        </article>
+        <article class="panel metric">
+          <h2>国家队持仓占流通市值</h2>
+          <strong id="holdings-value">—</strong>
+          <p id="holdings-date" class="date-range">季度披露</p>
+          <canvas id="holdings-chart" role="img" aria-label="国家队持仓占比季度走势" hidden></canvas>
+        </article>
+      </section>
+
+      <section class="panel" aria-labelledby="stats-title">
+        <div class="panel-header">
+          <div>
+            <h2 id="stats-title">信号统计</h2>
+            <p class="date-range">温度上穿 80 记为顶部信号，从 20 以下重新站上 20 记为低温回升。涨跌以沪深300收盘价计算。</p>
+          </div>
+        </div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="信号统计表">
+          <table>
+            <thead><tr><th scope="col">信号</th><th scope="col">次数</th><th scope="col">20 日均值</th><th scope="col">20 日上涨占比</th><th scope="col">60 日均值</th><th scope="col">60 日上涨占比</th></tr></thead>
+            <tbody id="stats-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="levels-title">
+        <div class="panel-header">
+          <div>
+            <h2 id="levels-title">阈值对照</h2>
+            <p class="date-range">每个达到阈值的交易日计一次。均值下方显示已走完观察期的样本数。</p>
+          </div>
+          <div class="periods" id="level-filter" role="group" aria-label="选择阈值区间">
+            <button type="button" data-level="low" aria-pressed="true">低温阈值</button>
+            <button type="button" data-level="high" aria-pressed="false">高温阈值</button>
+          </div>
+        </div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="阈值历史表现表">
+          <table>
+            <thead><tr><th scope="col">阈值</th><th scope="col">次数</th><th scope="col">20 日均值</th><th id="level-direction-20" scope="col">20 日上涨占比</th><th scope="col">20 日内平均最低变动</th><th scope="col">60 日均值</th><th id="level-direction-60" scope="col">60 日上涨占比</th></tr></thead>
+            <tbody id="level-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="signals-title">
+        <div class="panel-header">
+          <div>
+            <h2 id="signals-title">历史信号明细</h2>
+            <p class="date-range">按日期倒序。观察期未满的结果标为「待观察」。</p>
+          </div>
+          <div class="periods" id="signal-filter" role="group" aria-label="筛选信号">
+            <button type="button" data-signal="all" aria-pressed="true">全部</button>
+            <button type="button" data-signal="top" aria-pressed="false">顶部</button>
+            <button type="button" data-signal="bottom" aria-pressed="false">低温回升</button>
+          </div>
+        </div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="历史信号明细表">
+          <table>
+            <thead><tr><th scope="col">日期</th><th scope="col">信号</th><th scope="col">温度</th><th scope="col">20 日后涨跌</th><th scope="col">60 日后涨跌</th></tr></thead>
+            <tbody id="signal-rows"></tbody>
+          </table>
+        </div>
+        <div class="table-footer">
+          <p class="date-range" id="signal-count" aria-live="polite"></p>
+          <div class="periods" role="group" aria-label="历史信号分页">
+            <button type="button" id="signal-prev">上一页</button>
+            <button type="button" id="signal-next">下一页</button>
+          </div>
+        </div>
+      </section>
+    </div>
 
     <footer class="footer">
       <span id="all-dates"></span>

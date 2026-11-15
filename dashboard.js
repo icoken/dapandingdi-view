@@ -10,6 +10,8 @@ const factors = [
   { name: "新高动能", color: "#a74763" },
 ];
 
+const signalNames = { top: "顶部", bottom: "低温回升" };
+
 function marketZone(score) {
   if (score >= 80) return "顶部区";
   if (score >= 60) return "偏热";
@@ -163,6 +165,144 @@ function createChart(canvasId, tipId, heading, column, color, getRows) {
   return chart;
 }
 
+function percent(value, digits = 2) {
+  return value === null ? "—" : value.toFixed(digits) + "%";
+}
+
+function changeLabel(value) {
+  return (value > 0 ? "+" : "") + percent(value);
+}
+
+function statCell(text, value = null, samples = null) {
+  const cell = document.createElement("td");
+  cell.textContent = text;
+  if (value > 0) cell.classList.add("gain");
+  if (value < 0) cell.classList.add("loss");
+  if (samples !== null) {
+    const count = document.createElement("small");
+    count.textContent = "样本 " + samples;
+    cell.append(count);
+  }
+  return cell;
+}
+
+function appendRow(body, cells) {
+  const row = body.insertRow();
+  row.append(...cells);
+}
+
+function bindFilter(id, field, render) {
+  const buttons = [...$(id).querySelectorAll("button")];
+  for (const button of buttons) {
+    button.addEventListener("click", () => {
+      for (const item of buttons) {
+        item.setAttribute("aria-pressed", String(item === button));
+      }
+      render(button.dataset[field]);
+    });
+  }
+}
+
+function renderRatio(id, history, frequency, color) {
+  const latest = history.at(-1);
+  if (!latest) {
+    $(id + "-date").textContent = "暂无已披露数据";
+    return;
+  }
+  $(id + "-value").textContent = percent(latest[1]);
+  $(id + "-date").textContent = latest[0] + " · " + frequency;
+  if (history.length < 2) return;
+
+  const canvas = $(id + "-chart");
+  const values = history.map((point) => point[1]);
+  const min = Math.min(...values);
+  const span = Math.max(0.001, Math.max(...values) - min);
+  canvas.hidden = false;
+  canvas.setAttribute("aria-label", canvas.getAttribute("aria-label") + "，" + history[0][0] + " 至 " + latest[0]);
+  const context = canvas.getContext("2d");
+  const draw = () => {
+    canvas.width = Math.round(canvas.clientWidth * 2);
+    canvas.height = Math.round(canvas.clientHeight * 2);
+    const width = canvas.width - 8;
+    const height = canvas.height - 12;
+    context.strokeStyle = color;
+    context.lineWidth = 3;
+    context.beginPath();
+    values.forEach((value, index) => {
+      const x = 4 + width * index / (values.length - 1);
+      const y = 6 + height * (1 - (value - min) / span);
+      if (index === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    });
+    context.stroke();
+  };
+  draw();
+  new ResizeObserver(draw).observe(canvas);
+}
+
+function renderDetails(details) {
+  $("detail-panels").hidden = false;
+  renderRatio("margin", details.margin, "两融数据 · T+1", "#087b70");
+  renderRatio("holdings", details.holdings, "季度披露", "#215f99");
+
+  for (const [kind, total, short, long] of details.summary) {
+    appendRow($("stats-rows"), [
+      statCell(signalNames[kind]), statCell(total),
+      statCell(changeLabel(short.mean), short.mean, short.count), statCell(percent(short.up, 1)),
+      statCell(changeLabel(long.mean), long.mean, long.count), statCell(percent(long.up, 1)),
+    ]);
+  }
+
+  function renderLevels(kind) {
+    const low = kind === "low";
+    const direction = low ? "up" : "down";
+    const label = low ? "上涨" : "下跌";
+    $("level-direction-20").textContent = "20 日" + label + "占比";
+    $("level-direction-60").textContent = "60 日" + label + "占比";
+    const body = $("level-rows");
+    body.replaceChildren();
+    for (const [level, total, short, long, worst] of details.thresholds[kind]) {
+      appendRow(body, [
+        statCell((low ? "≤ " : "≥ ") + level), statCell(total),
+        statCell(changeLabel(short.mean), short.mean, short.count), statCell(percent(short[direction], 1)),
+        statCell(changeLabel(worst), worst),
+        statCell(changeLabel(long.mean), long.mean, long.count), statCell(percent(long[direction], 1)),
+      ]);
+    }
+  }
+  renderLevels("low");
+  bindFilter("level-filter", "level", renderLevels);
+
+  const pageSize = 12;
+  let matches = details.signals;
+  let page = 0;
+  function renderSignals() {
+    const body = $("signal-rows");
+    body.replaceChildren();
+    const first = page * pageSize;
+    for (const [date, kind, score, short, long] of matches.slice(first, first + pageSize)) {
+      appendRow(body, [
+        statCell(date), statCell(signalNames[kind]), statCell(score.toFixed(1)),
+        statCell(short === null ? "待观察" : changeLabel(short), short),
+        statCell(long === null ? "待观察" : changeLabel(long), long),
+      ]);
+    }
+    $("signal-count").textContent = matches.length
+      ? "第 " + (page + 1) + " / " + Math.ceil(matches.length / pageSize) + " 页 · 共 " + matches.length + " 条"
+      : "暂无此类信号";
+    $("signal-prev").disabled = page === 0;
+    $("signal-next").disabled = first + pageSize >= matches.length;
+  }
+  $("signal-prev").addEventListener("click", () => { page -= 1; renderSignals(); });
+  $("signal-next").addEventListener("click", () => { page += 1; renderSignals(); });
+  bindFilter("signal-filter", "signal", (kind) => {
+    matches = kind === "all" ? details.signals : details.signals.filter((item) => item[1] === kind);
+    page = 0;
+    renderSignals();
+  });
+  renderSignals();
+}
+
 function init(rows) {
   const latest = rows.at(-1);
   $("latest-date").dateTime = latest[0];
@@ -201,8 +341,14 @@ function init(rows) {
     return button;
   });
 
+  const details = typeof marketDetails === "undefined" ? null : marketDetails;
   function render() {
     $("visible-range").textContent = visible[0][0] + " 至 " + latest[0];
+    if (details) {
+      const start = details.benchmark[rows.length - visible.length];
+      const change = (details.benchmark.at(-1) / start - 1) * 100;
+      $("benchmark-change").textContent = "同期沪深300 " + changeLabel(change);
+    }
     drawChart(temperatureChart, visible);
     drawChart(factorChart, visible);
   }
@@ -219,6 +365,7 @@ function init(rows) {
     render();
   });
 
+  if (details) renderDetails(details);
   render();
   const observer = new ResizeObserver(render);
   observer.observe(temperatureChart.canvas);
